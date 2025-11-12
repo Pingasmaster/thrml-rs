@@ -108,6 +108,12 @@ impl SpinGibbsConditional {
     }
 }
 
+impl Default for SpinGibbsConditional {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AbstractConditionalSampler for SpinGibbsConditional {
     fn sample(&self, rng: &mut dyn RngCore, logits: &[f64]) -> Vec<NodeValue> {
         self.0.sample(rng, logits)

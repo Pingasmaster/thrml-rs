@@ -20,14 +20,16 @@ fn main() {
         node_refs
             .iter()
             .enumerate()
-            .filter_map(|(idx, node)| (idx % 2 == 0).then(|| *node))
+            .filter(|(idx, _)| idx % 2 == 0)
+            .map(|(_, node)| *node)
             .collect(),
     );
     let odd_block = Block::new(
         node_refs
             .iter()
             .enumerate()
-            .filter_map(|(idx, node)| (idx % 2 == 1).then(|| *node))
+            .filter(|(idx, _)| idx % 2 == 1)
+            .map(|(_, node)| *node)
             .collect(),
     );
 

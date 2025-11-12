@@ -44,6 +44,11 @@ impl BlockState {
     pub fn len(&self) -> usize {
         self.values.len()
     }
+
+    /// Returns true if the block state holds zero nodes.
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
 }
 
 /// Convenience type alias for the global state representation.
@@ -76,6 +81,11 @@ impl Block {
     /// Returns the number of nodes in this block.
     pub fn len(&self) -> usize {
         self.nodes.len()
+    }
+
+    /// Returns true if the block contains no nodes.
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
     }
 
     /// Returns an iterator over the nodes.
@@ -114,7 +124,7 @@ mod tests {
         let other = Block::new(other_nodes);
         let spec = BlockSpec::new(vec![block.clone(), other.clone()]);
 
-        let state = vec![
+        let state = [
             BlockState::new(vec![NodeValue::Spin(true), NodeValue::Spin(false)]),
             BlockState::new(vec![NodeValue::Spin(true), NodeValue::Spin(true)]),
         ];

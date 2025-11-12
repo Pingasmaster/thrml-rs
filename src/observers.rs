@@ -38,9 +38,7 @@ impl AbstractObserver for StateObserver {
     type Carry = ();
     type Output = Vec<BlockState>;
 
-    fn init(&self) -> Self::Carry {
-        ()
-    }
+    fn init(&self) -> Self::Carry {}
 
     fn observe(
         &self,
@@ -145,9 +143,9 @@ mod tests {
         );
 
         let observer = StateObserver::new(vec![block.clone()]);
-        let carry = observer.init();
         let global_state = BlockState::zeros(block.kind(), block.len());
-        let (_carry, state) = observer.observe(&program, &[global_state.clone()], &[], carry, 0);
+        let (_carry, state) =
+            observer.observe(&program, std::slice::from_ref(&global_state), &[], (), 0);
         assert_eq!(state.len(), 1);
         assert_eq!(state[0].len(), 1);
     }

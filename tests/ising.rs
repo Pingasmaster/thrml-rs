@@ -8,7 +8,7 @@ use thrml::pgm::SpinNode;
 #[test]
 // Confirm the Ising sampling pipeline can execute a single Gibbs step without errors.
 fn ising_sampling_can_run() {
-    let nodes = vec![SpinNode::new(), SpinNode::new()];
+    let nodes = [SpinNode::new(), SpinNode::new()];
     let edges = vec![];
     let biases = vec![0.0, 0.0];
     let weights = vec![];
@@ -26,7 +26,7 @@ fn ising_sampling_can_run() {
     let program = IsingSamplingProgram::new(&ebm, free_blocks, vec![]);
 
     let mut rng = StdRng::seed_from_u64(1);
-    let mut state_free = hinton_init(&mut rng, &ebm, &[block.clone()]);
+    let mut state_free = hinton_init(&mut rng, &ebm, std::slice::from_ref(&block));
     let state_clamp: Vec<BlockState> = vec![];
 
     program.sample_blocks(&mut rng, &mut state_free, &state_clamp);

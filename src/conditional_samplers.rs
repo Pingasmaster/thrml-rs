@@ -52,7 +52,7 @@ impl SoftmaxConditional {
 
 impl AbstractConditionalSampler for SoftmaxConditional {
     fn sample(&self, rng: &mut dyn RngCore, logits: &[f64]) -> Vec<NodeValue> {
-        if logits.len() % self.n_categories != 0 {
+        if !logits.len().is_multiple_of(self.n_categories) {
             panic!("Expected logits length divisible by n_categories");
         }
         let nodes = logits.len() / self.n_categories;

@@ -164,6 +164,31 @@ pub struct IsingTrainingSpec {
     pub schedule_negative: SamplingSchedule,
 }
 
+/// Inputs required to estimate KL gradients.
+pub struct KlGradientContext<'a> {
+    pub spec: &'a IsingTrainingSpec,
+    pub bias_nodes: &'a [crate::pgm::Node],
+    pub weight_edges: &'a [Edge],
+    pub data: &'a [BlockState],
+    pub conditioning_values: &'a [BlockState],
+    pub init_state_positive: &'a [BlockState],
+    pub init_state_negative: &'a [BlockState],
+}
+
+/// Moment statistics captured during a sampling run.
+pub struct MomentStats {
+    pub nodes: Vec<f64>,
+    pub edges: Vec<f64>,
+}
+
+/// Outputs from a KL gradient estimation.
+pub struct KlGradients {
+    pub weight_grad: Vec<f64>,
+    pub bias_grad: Vec<f64>,
+    pub positive_stats: MomentStats,
+    pub negative_stats: MomentStats,
+}
+
 /// Initialize spins via Hinton scheme that biases draws according to node bias.
 pub fn hinton_init(rng: &mut dyn RngCore, model: &IsingEBM, blocks: &[Block]) -> Vec<BlockState> {
     blocks
@@ -224,41 +249,27 @@ pub fn estimate_moments(
 }
 
 /// Estimate KL gradients by running positive/negative sampling programs.
-pub fn estimate_kl_grad(
-    _rng: &mut dyn RngCore,
-    _spec: &IsingTrainingSpec,
-    _bias_nodes: &[crate::pgm::Node],
-    _weight_edges: &[Edge],
-    _data: &[BlockState],
-    _conditioning_values: &[BlockState],
-    _init_state_positive: &[BlockState],
-    _init_state_negative: &[BlockState],
-) -> (
-    Vec<f64>,
-    Vec<f64>,
-    (Vec<f64>, Vec<f64>),
-    (Vec<f64>, Vec<f64>),
-) {
+pub fn estimate_kl_grad(rng: &mut dyn RngCore, ctx: &KlGradientContext<'_>) -> KlGradients {
     let (pos_nodes, pos_edges) = estimate_moments(
-        _rng,
-        _bias_nodes,
-        _weight_edges,
-        &_spec.program_positive,
-        &_spec.schedule_positive,
-        _init_state_positive,
-        _data,
+        rng,
+        ctx.bias_nodes,
+        ctx.weight_edges,
+        &ctx.spec.program_positive,
+        &ctx.spec.schedule_positive,
+        ctx.init_state_positive,
+        ctx.data,
     );
     let (neg_nodes, neg_edges) = estimate_moments(
-        _rng,
-        _bias_nodes,
-        _weight_edges,
-        &_spec.program_negative,
-        &_spec.schedule_negative,
-        _init_state_negative,
-        _conditioning_values,
+        rng,
+        ctx.bias_nodes,
+        ctx.weight_edges,
+        &ctx.spec.program_negative,
+        &ctx.spec.schedule_negative,
+        ctx.init_state_negative,
+        ctx.conditioning_values,
     );
 
-    let beta = _spec.ebm.beta;
+    let beta = ctx.spec.ebm.beta;
     // Differences between positive and negative samples give the KL gradient direction.
     let grad_b = pos_nodes
         .iter()
@@ -271,12 +282,18 @@ pub fn estimate_kl_grad(
         .map(|(p, n)| -beta * (p - n))
         .collect();
 
-    (
-        grad_w,
-        grad_b,
-        (pos_nodes, pos_edges),
-        (neg_nodes, neg_edges),
-    )
+    KlGradients {
+        weight_grad: grad_w,
+        bias_grad: grad_b,
+        positive_stats: MomentStats {
+            nodes: pos_nodes,
+            edges: pos_edges,
+        },
+        negative_stats: MomentStats {
+            nodes: neg_nodes,
+            edges: neg_edges,
+        },
+    }
 }
 
 fn global_state_for(state_free: &[BlockState], state_clamp: &[BlockState]) -> GlobalState {

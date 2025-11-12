@@ -57,6 +57,12 @@ impl SpinNode {
     }
 }
 
+impl Default for SpinNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<SpinNode> for Node {
     fn from(spin: SpinNode) -> Self {
         spin.0
@@ -73,6 +79,12 @@ impl CategoricalNode {
     /// Creates a new categorical node.
     pub fn new() -> Self {
         CategoricalNode(Node::new(NodeKind::Categorical))
+    }
+}
+
+impl Default for CategoricalNode {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
