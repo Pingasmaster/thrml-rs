@@ -1,37 +1,24 @@
-name: Testing Coverage
+name: Testing coverage
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the specified branches
   push:
-     branches:
-       - main
+    branches:
+      - main
   pull_request:
-     branches:
-       - main
-
-  # Allows you to run this workflow manually from the Actions tab
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   coverage:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      max-parallel: 4
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.10"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v3
-      - name: Set up python
-        uses: actions/setup-python@v4
+      - uses: actions-rs/toolchain@v1
         with:
-          python-version: ${{ matrix.python-version }}
+          toolchain: stable
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
       - name: Run coverage
-        run: |
-          pip install .[testing]
-          coverage3 run --source thrml --parallel-mode -m pytest tests/
-          coverage3 combine
-          coverage3 html
-          coverage3 report --fail-under=90
+        run: cargo tarpaulin --out Xml --run-types Tests --ciserver github
