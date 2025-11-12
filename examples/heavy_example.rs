@@ -7,7 +7,7 @@ use thrml::models::ising::{IsingEBM, IsingSamplingProgram, hinton_init};
 use thrml::pgm::SpinNode;
 
 fn main() {
-    let num_spins = 64;
+    let num_spins = 16000;
     let beta = 0.75;
     let node_refs = (0..num_spins)
         .map(|_| SpinNode::new().into())
@@ -34,9 +34,9 @@ fn main() {
     let state_clamp: Vec<BlockState> = vec![];
 
     let schedule = SamplingSchedule {
-        n_warmup: 500,
-        n_samples: 200,
-        steps_per_sample: 4,
+        n_warmup: 12500,
+        n_samples: 10000,
+        steps_per_sample: 15,
     };
 
     let start = Instant::now();

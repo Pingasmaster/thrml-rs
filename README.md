@@ -45,7 +45,7 @@ Both benchmark are completely equivalent.
 ## Apple-to-apple comparisons
 
 - **Quick example (Rust vs Python)** keeps the same 5-spin Ising chain, two-color Gibbs blocks, and first-sample inspection. Run the Rust side with `cargo run --example quick_example` and the Python side from the legacy repository via `python run_readme_example.py`.
-- **Heavy benchmark (Rust vs Python)** now matches exactly in scale and schedule: 64 spins, 500 warmup sweeps, 200 samples, and four steps per sample. This was made specifically to have a heavy benchmark to see the speed difference between the old python and the new rust implementation. See below how to run.
+- **Heavy benchmark (Rust vs Python)** now matches exactly in scale and schedule: 16000 spins, 12500 warmup sweeps, 10000 samples, and 15 steps per sample. This was made specifically to have a heavy benchmark to see the speed difference between the old python and the new rust implementation. See below how to run.
 
 Heavy benchmark:
 
@@ -64,7 +64,7 @@ from thrml.models import IsingEBM, IsingSamplingProgram, hinton_init
 
 
 def main() -> None:
-    node_count = 64
+    node_count = 16000
     nodes = [SpinNode() for _ in range(node_count)]
     edges = []
     biases = jnp.full((node_count,), 0.05)
@@ -77,14 +77,14 @@ def main() -> None:
     key = jax.random.key(123)
     k_init, k_samp = jax.random.split(key, 2)
     init_state = hinton_init(k_init, model, free_blocks, ())
-    schedule = SamplingSchedule(n_warmup=500, n_samples=200, steps_per_sample=4)
+    schedule = SamplingSchedule(n_warmup=12500, n_samples=10000, steps_per_sample=15)
 
     start = time.perf_counter()
     samples = sample_states(k_samp, program, schedule, init_state, [], [Block(nodes)])
     elapsed = time.perf_counter() - start
 
     sample_tensor = samples[0]
-    print("Heavy Python run: 64 spins, 200 samples, 4 steps/sample")
+    print("Heavy Python run: 16000 spins, 10000 samples, 15 steps/sample")
     print(f"Sample tensor shape: {sample_tensor.shape}")
     print(f"Elapsed wall-clock: {elapsed:.4f}s")
 
