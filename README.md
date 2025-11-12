@@ -38,28 +38,69 @@ Or add `thrml = { path = "." }` to your `Cargo.toml` dependencies and import the
 
 ## Example
 
-```rust
-use rand::SeedableRng;
-use rand::rngs::StdRng;
-use thrml::block_management::{Block, BlockState};
-use thrml::models::ising::{IsingEBM, IsingSamplingProgram, hinton_init};
-use thrml::pgm::SpinNode;
+See examples/. There's an implementation of the classic example shown in the python version of thrml and a heavier benchmark so you can better see the speed difference on a CPU between this and the original thrml.
 
-let nodes = vec![SpinNode::new(), SpinNode::new()];
-let ebm = IsingEBM::new(
-    nodes.iter().map(|n| (*n).into()).collect(),
-    vec![],
-    vec![0.0, 0.0],
-    vec![],
-    1.0,
-);
-let free_blocks = vec![vec![Block::new(vec![nodes[0].into(), nodes[1].into()])]];
-let program = IsingSamplingProgram::new(&ebm, free_blocks, vec![]);
-let mut rng = StdRng::seed_from_u64(42);
-let mut state_free = hinton_init(&mut rng, &ebm, &[Block::new(vec![nodes[0].into(), nodes[1].into()])]);
-program.sample_blocks(&mut rng, &mut state_free, &[]);
-assert_eq!(state_free.len(), 1);
+Both benchmark are completely equivalent.
+
+## Apple-to-apple comparisons
+
+- **Quick example (Rust vs Python)** keeps the same 5-spin Ising chain, two-color Gibbs blocks, and first-sample inspection. Run the Rust side with `cargo run --example quick_example` and the Python side from the legacy repository via `python run_readme_example.py`.
+- **Heavy benchmark (Rust vs Python)** now matches exactly in scale and schedule: 64 spins, 500 warmup sweeps, 200 samples, and four steps per sample. This was made specifically to have a heavy benchmark to see the speed difference between the old python and the new rust implementation. See below how to run.
+
+Heavy benchmark:
+
+Run `cargo build --release` first to build the latest version of this rust crate.
+
+1. Run the Rust heavy example: `time cargo run --release --example heavy_example`
+2. Run the python version:
+
+```bash
+tee heavy.py <<'EOF'
+import time
+import jax
+import jax.numpy as jnp
+from thrml import Block, SamplingSchedule, SpinNode, sample_states
+from thrml.models import IsingEBM, IsingSamplingProgram, hinton_init
+
+
+def main() -> None:
+    node_count = 64
+    nodes = [SpinNode() for _ in range(node_count)]
+    edges = []
+    biases = jnp.full((node_count,), 0.05)
+    beta = jnp.array(1.0)
+    model = IsingEBM(nodes, edges, biases, [], beta)
+
+    free_blocks = [Block(nodes[::2]), Block(nodes[1::2])]
+    program = IsingSamplingProgram(model, free_blocks, clamped_blocks=[])
+
+    key = jax.random.key(123)
+    k_init, k_samp = jax.random.split(key, 2)
+    init_state = hinton_init(k_init, model, free_blocks, ())
+    schedule = SamplingSchedule(n_warmup=500, n_samples=200, steps_per_sample=4)
+
+    start = time.perf_counter()
+    samples = sample_states(k_samp, program, schedule, init_state, [], [Block(nodes)])
+    elapsed = time.perf_counter() - start
+
+    sample_tensor = samples[0]
+    print("Heavy Python run: 64 spins, 200 samples, 4 steps/sample")
+    print(f"Sample tensor shape: {sample_tensor.shape}")
+    print(f"Elapsed wall-clock: {elapsed:.4f}s")
+
+
+if __name__ == "__main__":
+    main()
+EOF
 ```
+
+Run the python version from the original repo:
+
+```
+time python heavy.py
+```
+
+3. Compare the printed wall-clock times (real times) for a direct apples-to-apples runtime comparison.
 
 ## Tests
 
