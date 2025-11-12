@@ -7,6 +7,39 @@ use crate::interaction::{
 use rand::RngCore;
 use std::sync::Arc;
 
+pub struct DiscreteEBMFactor {
+    spin_factor: Option<SpinEBMFactor>,
+    cat_factor: Option<CategoricalEBMFactor>,
+}
+
+impl DiscreteEBMFactor {
+    pub fn new(
+        spin_node_groups: Vec<Block>,
+        cat_node_groups: Vec<Block>,
+        spin_weights: Vec<f64>,
+        cat_weights: Vec<f64>,
+        cat_cardinality: usize,
+    ) -> Self {
+        let spin_factor = if spin_node_groups.is_empty() {
+            None
+        } else {
+            Some(SpinEBMFactor::new(spin_node_groups, spin_weights))
+        };
+        let cat_factor = if cat_node_groups.is_empty() {
+            None
+        } else {
+            Some(CategoricalEBMFactor::new(
+                cat_node_groups,
+                cat_weights,
+                cat_cardinality,
+            ))
+        };
+        Self {
+            spin_factor,
+            cat_factor,
+        }
+    }
+}
 pub struct SpinEBMFactor {
     node_groups: Vec<Block>,
     weights: Vec<f64>,
@@ -145,5 +178,46 @@ impl AbstractFactor for CategoricalEBMFactor {
                 self.cardinality,
             )),
         )]
+    }
+}
+
+#[cfg(test)]
+mod discrete_tests {
+    use super::*;
+    use crate::block_management::Block;
+    use crate::pgm::{CategoricalNode, SpinNode};
+
+    #[test]
+    fn discrete_factor_produces_spin_and_cat_groups() {
+        let spin_nodes = vec![SpinNode::new().into(), SpinNode::new().into()];
+        let cat_nodes = vec![CategoricalNode::new().into(), CategoricalNode::new().into()];
+        let tail_cat_nodes = vec![CategoricalNode::new().into(), CategoricalNode::new().into()];
+        let spin_block = Block::new(spin_nodes.clone());
+        let cat_block = Block::new(cat_nodes.clone());
+        let cat_tail_block = Block::new(tail_cat_nodes.clone());
+
+        let factor = DiscreteEBMFactor::new(
+            vec![spin_block.clone()],
+            vec![cat_block.clone(), cat_tail_block.clone()],
+            vec![0.1, -0.1],
+            vec![0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            3,
+        );
+
+        let groups = factor.interaction_groups();
+        assert_eq!(groups.len(), 2);
+    }
+}
+
+impl AbstractFactor for DiscreteEBMFactor {
+    fn interaction_groups(&self) -> Vec<InteractionGroup> {
+        let mut groups = Vec::new();
+        if let Some(factor) = &self.spin_factor {
+            groups.extend(factor.interaction_groups());
+        }
+        if let Some(factor) = &self.cat_factor {
+            groups.extend(factor.interaction_groups());
+        }
+        groups
     }
 }

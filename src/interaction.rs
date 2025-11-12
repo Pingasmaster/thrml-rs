@@ -1,4 +1,4 @@
-use crate::block_management::{Block, BlockSpec, GlobalState, NodeValue};
+use crate::block_management::{Block, BlockSpec, GlobalState, NodeValue, gather_block_state};
 use std::sync::Arc;
 
 /// Trait for evaluation logic inside an interaction group.
@@ -9,27 +9,6 @@ pub trait InteractionEvaluator: Send + Sync {
         spec: &BlockSpec,
         tail_nodes: &[Block],
     ) -> Vec<f64>;
-}
-
-fn gather_block_values(
-    block: &Block,
-    global_state: &GlobalState,
-    spec: &BlockSpec,
-) -> Vec<NodeValue> {
-    block
-        .iter()
-        .map(|node| {
-            global_state
-                .get(
-                    *spec
-                        .node_location
-                        .get(node)
-                        .expect("Node missing from global state"),
-                )
-                .expect("Global state mismatch")
-                .clone()
-        })
-        .collect()
 }
 
 fn value_to_index(value: &NodeValue, dim: usize) -> usize {
@@ -93,7 +72,7 @@ impl InteractionEvaluator for TensorEvaluator {
 
         let tail_states: Vec<Vec<NodeValue>> = tail_nodes
             .iter()
-            .map(|block| gather_block_values(block, global_state, spec))
+            .map(|block| gather_block_state(block, global_state, spec))
             .collect();
 
         let mut out = vec![0.0; self.head_len];

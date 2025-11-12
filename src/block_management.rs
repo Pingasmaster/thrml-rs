@@ -87,6 +87,18 @@ impl Block {
     }
 }
 
+/// Gather the values of a block by indexing into a global state vector.
+pub fn gather_block_state(
+    block: &Block,
+    global_state: &GlobalState,
+    spec: &BlockSpec,
+) -> Vec<NodeValue> {
+    block
+        .iter()
+        .map(|node| global_state[spec.node_location[node]].clone())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

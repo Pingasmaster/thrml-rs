@@ -1,6 +1,7 @@
 use crate::block_management::{Block, BlockSpec, BlockState, GlobalState, block_state_to_global};
 use crate::conditional_samplers::AbstractConditionalSampler;
 use crate::interaction::InteractionGroup;
+use crate::pgm::Node;
 use rand::RngCore;
 use std::collections::HashMap;
 
@@ -10,6 +11,8 @@ pub struct BlockGibbsSpec {
     pub free_blocks: Vec<Block>,
     pub clamped_blocks: Vec<Block>,
     pub sampling_order: Vec<Vec<usize>>,
+    pub superblocks: Vec<Vec<Block>>,
+    pub node_locations: HashMap<Node, usize>,
     block_index_map: HashMap<Block, usize>,
 }
 
@@ -17,6 +20,7 @@ impl BlockGibbsSpec {
     pub fn new(free_super_blocks: Vec<Vec<Block>>, clamped_blocks: Vec<Block>) -> Self {
         let mut free_blocks = Vec::new();
         let mut sampling_order = Vec::new();
+        let superblocks = free_super_blocks.clone();
 
         for super_block in free_super_blocks {
             let mut group = Vec::new();
@@ -33,6 +37,8 @@ impl BlockGibbsSpec {
         all_blocks.extend(clamped_blocks.clone());
         let block_spec = BlockSpec::new(all_blocks);
 
+        let node_locations = block_spec.node_location.clone();
+
         let block_index_map = free_blocks
             .iter()
             .cloned()
@@ -44,9 +50,18 @@ impl BlockGibbsSpec {
             block_spec,
             free_blocks,
             clamped_blocks,
+            superblocks: superblocks.clone(),
             sampling_order,
             block_index_map,
+            node_locations,
         }
+    }
+
+    pub fn get_node_indices(&self, block: &Block) -> Vec<usize> {
+        block
+            .iter()
+            .map(|node| *self.node_locations.get(node).expect("node not in spec"))
+            .collect()
     }
 }
 
@@ -105,6 +120,10 @@ impl BlockSamplingProgram {
     ) {
         let global_state = self.build_global_state(state_free, state_clamp);
         let block = &self.gibbs_spec.free_blocks[block_index];
+        let state = &state_free[block_index];
+        if block.len() != state.len() {
+            panic!("Block state mismatched length");
+        }
         let mut logits = vec![0.0; block.len()];
 
         for group in &self.per_block_interactions[block_index] {
@@ -143,7 +162,7 @@ pub struct SamplingSchedule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::block_management::{BlockState, NodeValue};
+    use crate::block_management::{Block, BlockState, NodeValue};
     use crate::conditional_samplers::BernoulliConditional;
     use crate::interaction::{InteractionGroup, SpinBiasEvaluator};
     use crate::pgm::SpinNode;
@@ -175,5 +194,14 @@ mod tests {
 
         assert_eq!(state_free[0].len(), 1);
         assert!(matches!(state_free[0].values[0], NodeValue::Spin(_)));
+    }
+
+    #[test]
+    fn node_locations_survive_spec() {
+        let node = SpinNode::new().into();
+        let block = Block::new(vec![node]);
+        let spec = BlockGibbsSpec::new(vec![vec![block.clone()]], vec![]);
+        let indices = spec.get_node_indices(&block);
+        assert_eq!(indices, vec![0]);
     }
 }

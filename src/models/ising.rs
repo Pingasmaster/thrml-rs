@@ -6,6 +6,27 @@ use crate::models::discrete_ebm::{SpinEBMFactor, SpinGibbsConditional};
 use rand::{Rng, RngCore};
 use std::collections::HashMap;
 
+fn run_sampling_chain(
+    rng: &mut dyn RngCore,
+    program: &IsingSamplingProgram,
+    schedule: &SamplingSchedule,
+    state_free: &mut [BlockState],
+    state_clamp: &[BlockState],
+) -> Vec<GlobalState> {
+    for _ in 0..schedule.n_warmup {
+        program.sample_blocks(rng, state_free, state_clamp);
+    }
+
+    let mut samples = Vec::with_capacity(schedule.n_samples);
+    for _ in 0..schedule.n_samples {
+        for _ in 0..schedule.steps_per_sample {
+            program.sample_blocks(rng, state_free, state_clamp);
+        }
+        samples.push(global_state_for(state_free, state_clamp));
+    }
+    samples
+}
+
 pub type Edge = (crate::pgm::Node, crate::pgm::Node);
 
 pub struct IsingEBM {
@@ -161,21 +182,14 @@ pub fn estimate_moments(
 ) -> (Vec<f64>, Vec<f64>) {
     let mut state = _init_state.to_vec();
     let clamp = _clamped_data;
+    let samples = run_sampling_chain(_rng, _program, _schedule, &mut state, clamp);
 
-    for _ in 0.._schedule.n_warmup {
-        _program.sample_blocks(_rng, &mut state, clamp);
-    }
+    let spec = &_program.inner.inner.gibbs_spec.block_spec;
 
     let mut node_sums = vec![0.0; _first_moment_nodes.len()];
     let mut edge_sums = vec![0.0; _second_moment_edges.len()];
 
-    for _ in 0.._schedule.n_samples {
-        for _ in 0.._schedule.steps_per_sample {
-            _program.sample_blocks(_rng, &mut state, clamp);
-        }
-        let global = global_state_for(&state, clamp);
-        let spec = &_program.inner.inner.gibbs_spec.block_spec;
-
+    for global in samples.iter() {
         for (i, node) in _first_moment_nodes.iter().enumerate() {
             let value = spin_value(global[spec.node_location[node]].clone());
             node_sums[i] += value;
