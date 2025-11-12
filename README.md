@@ -1,80 +1,50 @@
-<div align="center">
-  <img src="docs/_static/logo/logo.svg" alt="THRML Logo" width="150" style="margin-bottom: 10px;">
-</div>
+# THRML (Rust)
 
-<h1 align='center'>THRML</h1>
+THRML is now a Rust-native crate for building and sampling probabilistic graphical models.
+It keeps the spirit of the original library (blocked Gibbs sampling, discrete EBMs, Ising models)
+while leveraging Rust's safety and performance.
 
-THRML is a JAX library for building and sampling probabilistic graphical models, with a focus on efficient block Gibbs sampling and energy-based models. Extropic is developing hardware to make sampling from certain classes of discrete PGMs massively more energy efficient; THRML provides GPU‑accelerated tools for block sampling on sparse, heterogeneous graphs, making it a natural place to prototype today and experiment with future Extropic hardware.
+## Key modules
 
-Features include:
-
-- Blocked Gibbs sampling for PGMs
-- Arbitrary PyTree node states
-- Support for heterogeneous graphical models
-- Discrete EBM utilities
-- Enables early experimentation with future Extropic hardware
-
-From a technical point of view, the internal structure compiles factor-based interactions to a compact "global" state representation, minimizing Python loops and maximizing array-level parallelism in JAX.
+- `block_management`: define nodes, blocks, and conversions between block-local and global states.
+- `block_sampling`: build Gibbs sampling programs with per-block samplers.
+- `conditional_samplers`: Bernoulli and softmax conditionals for spin and categorical nodes.
+- `interaction`/`factor`: define static interaction structures and assemble them into sampling programs.
+- `models::ising`: spin-based Ising models plus a simple sampling harness.
 
 ## Installation
 
-Requires Python 3.10+.
-
 ```bash
-pip install thrml
+cargo install --path .
 ```
 
-or
+Or add `thrml = { path = "." }` to your `Cargo.toml` dependencies and import the crate with `use thrml::...`.
 
-```bash
-uv pip install thrml
+## Example
+
+```rust
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use thrml::block_management::{Block, BlockState};
+use thrml::models::ising::{IsingEBM, IsingSamplingProgram, hinton_init};
+use thrml::pgm::SpinNode;
+
+let nodes = vec![SpinNode::new(), SpinNode::new()];
+let ebm = IsingEBM::new(
+    nodes.iter().map(|n| (*n).into()).collect(),
+    vec![],
+    vec![0.0, 0.0],
+    vec![],
+    1.0,
+);
+let free_blocks = vec![vec![Block::new(vec![nodes[0].into(), nodes[1].into()])]];
+let program = IsingSamplingProgram::new(&ebm, free_blocks, vec![]);
+let mut rng = StdRng::seed_from_u64(42);
+let mut state_free = hinton_init(&mut rng, &ebm, &[Block::new(vec![nodes[0].into(), nodes[1].into()])]);
+program.sample_blocks(&mut rng, &mut state_free, &[]);
+assert_eq!(state_free.len(), 1);
 ```
 
-## Documentation
+## Tests
 
-Available at [docs.thrml.ai](https://docs.thrml.ai/en/latest/).
-
-
-## Citing THRML
-
-If you use THRML in your research, please cite us!
-
-```bibtex
-@misc{jelinčič2025efficientprobabilistichardwarearchitecture,
-      title={An efficient probabilistic hardware architecture for diffusion-like models}, 
-      author={Andraž Jelinčič and Owen Lockwood and Akhil Garlapati and Guillaume Verdon and Trevor McCourt},
-      year={2025},
-      eprint={2510.23972},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2510.23972}, 
-}
-```
-
-## Quick example
-
-Sampling a small Ising chain with two-color block Gibbs:
-
-```python
-import jax
-import jax.numpy as jnp
-from thrml import SpinNode, Block, SamplingSchedule, sample_states
-from thrml.models import IsingEBM, IsingSamplingProgram, hinton_init
-
-nodes = [SpinNode() for _ in range(5)]
-edges = [(nodes[i], nodes[i+1]) for i in range(4)]
-biases = jnp.zeros((5,))
-weights = jnp.ones((4,)) * 0.5
-beta = jnp.array(1.0)
-model = IsingEBM(nodes, edges, biases, weights, beta)
-
-free_blocks = [Block(nodes[::2]), Block(nodes[1::2])]
-program = IsingSamplingProgram(model, free_blocks, clamped_blocks=[])
-
-key = jax.random.key(0)
-k_init, k_samp = jax.random.split(key, 2)
-init_state = hinton_init(k_init, model, free_blocks, ())
-schedule = SamplingSchedule(n_warmup=100, n_samples=1000, steps_per_sample=2)
-
-samples = sample_states(k_samp, program, schedule, init_state, [], [Block(nodes)])
-```
+Run `cargo test` to execute the Rust unit and integration tests.

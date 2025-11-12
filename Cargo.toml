@@ -1,0 +1,12 @@
+[package]
+name = "thrml"
+version = "0.1.0"
+edition = "2024"
+authors = ["Extropic"]
+description = "Rust reimplementation of the THRML probabilistic graphical model tools."
+license = "Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+rand = "0.10.0-rc.5"
+ndarray = "0.17.1"
