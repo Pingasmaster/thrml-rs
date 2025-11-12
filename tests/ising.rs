@@ -6,6 +6,7 @@ use thrml::models::ising::{IsingEBM, IsingSamplingProgram, hinton_init};
 use thrml::pgm::SpinNode;
 
 #[test]
+// Confirm the Ising sampling pipeline can execute a single Gibbs step without errors.
 fn ising_sampling_can_run() {
     let nodes = vec![SpinNode::new(), SpinNode::new()];
     let edges = vec![];

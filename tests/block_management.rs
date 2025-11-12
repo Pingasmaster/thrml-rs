@@ -14,11 +14,14 @@ fn roundtrip_block_state_can_be_consumed() {
     assert_eq!(recovered[0].values, state.values);
 }
 
+// Ensures constructing specs with duplicate nodes panics, so the mapping stays bijective.
+
 #[test]
 #[should_panic]
 fn cannot_duplicate_nodes_in_spec() {
     let node = SpinNode::new().into();
     let block_a = Block::new(vec![node]);
     let block_b = Block::new(vec![node]);
+    // Re-using the same node across two blocks is prohibited by BlockSpec.
     let _ = BlockSpec::new(vec![block_a, block_b]);
 }

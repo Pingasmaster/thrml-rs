@@ -12,6 +12,7 @@ pub trait InteractionEvaluator: Send + Sync {
 }
 
 fn value_to_index(value: &NodeValue, dim: usize) -> usize {
+    // Map each possible NodeValue into the tensor index for that dimension.
     match value {
         NodeValue::Spin(true) => 1,
         NodeValue::Spin(false) => 0,
@@ -25,6 +26,7 @@ fn value_to_index(value: &NodeValue, dim: usize) -> usize {
     }
 }
 
+/// Evaluator that treats a factor as a simple tensor indexed by the tail states.
 pub struct TensorEvaluator {
     weights: Arc<Vec<f64>>,
     head_len: usize,
@@ -38,6 +40,7 @@ impl TensorEvaluator {
             .iter()
             .copied()
             .fold(1, |acc, dim| acc * dim_or_one(dim));
+        // Each tail block is assumed to share the same length as the head, so stride is head-independent.
         if weights.len() != head_len * tail_stride {
             panic!(
                 "Weights length ({}) must equal head_len ({}) * tail_stride ({})",
@@ -82,6 +85,7 @@ impl InteractionEvaluator for TensorEvaluator {
             for (dim, state_batch) in self.tail_dims.iter().zip(tail_states.iter()) {
                 let value = &state_batch[i];
                 let idx = value_to_index(value, *dim);
+                // Advance a row-major index based on each tail block's contribution.
                 tail_index += idx * stride;
                 stride *= dim_or_one(*dim);
             }
@@ -92,6 +96,7 @@ impl InteractionEvaluator for TensorEvaluator {
 }
 
 fn dim_or_one(dim: usize) -> usize {
+    // Treat zero-dimension tails as scalars to avoid zero strides.
     if dim == 0 { 1 } else { dim }
 }
 
@@ -108,6 +113,7 @@ impl InteractionGroup {
         evaluator: Box<dyn InteractionEvaluator>,
     ) -> Self {
         let head_len = head_nodes.len();
+        // Guarantees the evaluator can align tail states with each head entry.
         for tail in &tail_nodes {
             if tail.len() != head_len {
                 panic!("All tail node blocks must have the same length as head_nodes");
@@ -121,11 +127,13 @@ impl InteractionGroup {
     }
 
     pub fn evaluate(&self, global_state: &GlobalState, spec: &BlockSpec) -> Vec<f64> {
+        // Delegate to the configured evaluator for this interaction group.
         self.evaluator
             .evaluate(global_state, spec, &self.tail_nodes)
     }
 }
 
+/// Bias-only evaluator that always returns the same terms per head node.
 pub struct SpinBiasEvaluator {
     inner: TensorEvaluator,
 }
@@ -149,6 +157,7 @@ impl InteractionEvaluator for SpinBiasEvaluator {
     }
 }
 
+/// Pairwise spin evaluator that multiplies a head weight by its tails' spins.
 pub struct SpinPairwiseEvaluator {
     inner: TensorEvaluator,
 }
@@ -156,6 +165,7 @@ pub struct SpinPairwiseEvaluator {
 impl SpinPairwiseEvaluator {
     pub fn new(weights: Arc<Vec<f64>>, head_len: usize) -> Self {
         Self {
+            // Tail dim spans {false, true} for each paired spin neighbor.
             inner: TensorEvaluator::new(weights, head_len, vec![2]),
         }
     }
@@ -172,6 +182,7 @@ impl InteractionEvaluator for SpinPairwiseEvaluator {
     }
 }
 
+/// Evaluator that indexes categorical values via a contiguous tensor of logits.
 pub struct CategoricalPairwiseEvaluator {
     inner: TensorEvaluator,
 }
@@ -179,6 +190,7 @@ pub struct CategoricalPairwiseEvaluator {
 impl CategoricalPairwiseEvaluator {
     pub fn new(weights: Arc<Vec<f64>>, head_len: usize, cardinality: usize) -> Self {
         Self {
+            // Tail dimension equals the categorical cardinality for lookup tables.
             inner: TensorEvaluator::new(weights, head_len, vec![cardinality]),
         }
     }

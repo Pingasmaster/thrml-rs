@@ -5,7 +5,7 @@ use crate::pgm::Node;
 use rand::RngCore;
 use std::collections::HashMap;
 
-/// Specification for Gibbs sampling with free and clamped blocks.
+/// Specification for Gibbs sampling with free/clamped blocks, sampling order, and helper indices.
 pub struct BlockGibbsSpec {
     pub block_spec: BlockSpec,
     pub free_blocks: Vec<Block>,
@@ -17,6 +17,7 @@ pub struct BlockGibbsSpec {
 }
 
 impl BlockGibbsSpec {
+    /// Build the Gibbs specification from the provided free/ clamped blocks.
     pub fn new(free_super_blocks: Vec<Vec<Block>>, clamped_blocks: Vec<Block>) -> Self {
         let mut free_blocks = Vec::new();
         let mut sampling_order = Vec::new();
@@ -29,6 +30,7 @@ impl BlockGibbsSpec {
                 free_blocks.push(block);
             }
             if !group.is_empty() {
+                // Remember the meta-ordering for groups that shrink to nothing.
                 sampling_order.push(group);
             }
         }
@@ -46,6 +48,8 @@ impl BlockGibbsSpec {
             .map(|(index, block)| (block, index))
             .collect();
 
+        // Build a fast reverse lookup from block to its sampling index.
+
         Self {
             block_spec,
             free_blocks,
@@ -57,6 +61,7 @@ impl BlockGibbsSpec {
         }
     }
 
+    /// Return the global indices of every node in `block`.
     pub fn get_node_indices(&self, block: &Block) -> Vec<usize> {
         block
             .iter()
@@ -93,6 +98,8 @@ impl BlockSamplingProgram {
             per_block_interactions[*block_index].push(group);
         }
 
+        // Distribute each interaction group to the correct sampler for cached logit accumulation.
+
         Self {
             gibbs_spec,
             samplers,
@@ -108,9 +115,11 @@ impl BlockSamplingProgram {
         let mut combined = Vec::with_capacity(state_free.len() + state_clamp.len());
         combined.extend(state_free.iter());
         combined.extend(state_clamp.iter());
+        // Flatten all block states so interaction evaluators work with a contiguous global view.
         block_state_to_global(&combined)
     }
 
+    /// Sample a single free block, updating the provided state array in place.
     fn sample_single_block(
         &self,
         rng: &mut dyn RngCore,
@@ -133,11 +142,14 @@ impl BlockSamplingProgram {
             }
         }
 
+        // Sampling uses logits accumulated from each interaction group before applying the conditional.
+
         let sampler = &self.samplers[block_index];
         let new_values = sampler.sample(rng, &logits);
         state_free[block_index] = BlockState::new(new_values);
     }
 
+    /// Sweep through every free block following the scheduling order.
     pub fn sample_blocks(
         &self,
         rng: &mut dyn RngCore,
@@ -145,6 +157,7 @@ impl BlockSamplingProgram {
         state_clamp: &[BlockState],
     ) {
         for group in &self.gibbs_spec.sampling_order {
+            // Follow the superblock-defined order for a Gibbs sweep.
             for &block_index in group {
                 self.sample_single_block(rng, state_free, state_clamp, block_index);
             }

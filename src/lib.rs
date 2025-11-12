@@ -9,6 +9,7 @@ pub mod models;
 pub mod observers;
 pub mod pgm;
 
+// Expose the most commonly used types at the top level for easier API consumption.
 pub use block_management::{Block, BlockSpec, BlockState, NodeValue, block_state_to_global};
 pub use block_sampling::{BlockGibbsSpec, BlockSamplingProgram, SamplingSchedule};
 pub use conditional_samplers::{

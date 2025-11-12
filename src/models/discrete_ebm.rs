@@ -7,6 +7,7 @@ use crate::interaction::{
 use rand::RngCore;
 use std::sync::Arc;
 
+/// A discrete EBM factor that mixes spin and categorical interactions.
 pub struct DiscreteEBMFactor {
     spin_factor: Option<SpinEBMFactor>,
     cat_factor: Option<CategoricalEBMFactor>,
@@ -23,11 +24,13 @@ impl DiscreteEBMFactor {
         let spin_factor = if spin_node_groups.is_empty() {
             None
         } else {
+            // Build spin factor only if nodes were explicitly provided.
             Some(SpinEBMFactor::new(spin_node_groups, spin_weights))
         };
         let cat_factor = if cat_node_groups.is_empty() {
             None
         } else {
+            // Build categorical factor only when there are categorical node groups.
             Some(CategoricalEBMFactor::new(
                 cat_node_groups,
                 cat_weights,
@@ -40,6 +43,7 @@ impl DiscreteEBMFactor {
         }
     }
 }
+/// Factor covering spin-only interactions (bias or pairwise).
 pub struct SpinEBMFactor {
     node_groups: Vec<Block>,
     weights: Vec<f64>,
@@ -50,6 +54,7 @@ impl SpinEBMFactor {
         if node_groups.is_empty() {
             panic!("SpinEBMFactor requires at least one node group");
         }
+        // Node groups drive either bias-only or pairwise interactions depending on count.
         Self {
             node_groups,
             weights,
@@ -61,6 +66,7 @@ impl AbstractFactor for SpinEBMFactor {
     fn interaction_groups(&self) -> Vec<InteractionGroup> {
         let head = self.node_groups[0].clone();
         let head_len = head.len();
+        // One group -> bias-only, two -> pairwise head/tail interaction.
         match self.node_groups.len() {
             1 => {
                 if self.weights.len() != head_len {
@@ -93,6 +99,7 @@ impl AbstractFactor for SpinEBMFactor {
     }
 }
 
+/// Gibbs sampler for spin blocks built on top of a Bernoulli conditional.
 pub struct SpinGibbsConditional(BernoulliConditional);
 
 impl SpinGibbsConditional {
@@ -143,6 +150,7 @@ mod tests {
     }
 }
 
+/// Factor covering categorical head/tail interactions using logits per category.
 pub struct CategoricalEBMFactor {
     node_groups: Vec<Block>,
     weights: Vec<f64>,
@@ -154,6 +162,7 @@ impl CategoricalEBMFactor {
         if node_groups.len() != 2 {
             panic!("CategoricalEBMFactor currently supports exactly two node groups");
         }
+        // Each head entry expects one logit per category for conditional sampling.
         Self {
             node_groups,
             weights,
@@ -169,6 +178,7 @@ impl AbstractFactor for CategoricalEBMFactor {
         if self.weights.len() != head_len * self.cardinality {
             panic!("Categorical factor weights must equal head_len * cardinality")
         }
+        // Use categorical evaluator that sees full logits for each head/tail pair.
         vec![InteractionGroup::new(
             head,
             vec![self.node_groups[1].clone()],

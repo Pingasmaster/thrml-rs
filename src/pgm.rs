@@ -12,6 +12,8 @@ pub enum NodeKind {
 }
 
 /// A lightweight reference to an individual node.
+///
+/// Nodes are intentionally cheap to clone so sampler code can duplicate references freely.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Node {
     id: u64,
@@ -21,6 +23,7 @@ pub struct Node {
 impl Node {
     fn new(kind: NodeKind) -> Self {
         let id = NODE_COUNTER.fetch_add(1, Ordering::SeqCst);
+        // Each node receives a globally unique identifier for safe hashing/mapping.
         Self { id, kind }
     }
 
@@ -42,6 +45,8 @@ impl From<Node> for NodeKind {
 }
 
 /// A spin-valued node reference.
+///
+/// Spin nodes are represented as bools when sampled.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct SpinNode(Node);
 
@@ -59,6 +64,8 @@ impl From<SpinNode> for Node {
 }
 
 /// A categorical node reference.
+///
+/// Its sampled values reference discrete buckets, so they require cardinality-aware evaluators.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct CategoricalNode(Node);
 

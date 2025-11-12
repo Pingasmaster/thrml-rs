@@ -139,8 +139,11 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+
+# Rust build artifacts
+target/
+**/target/
+.cargo/
 
 # mypy
 .mypy_cache/

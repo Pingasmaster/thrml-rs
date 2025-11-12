@@ -9,6 +9,7 @@ use thrml::interaction::{InteractionGroup, SpinBiasEvaluator};
 use thrml::pgm::SpinNode;
 
 #[test]
+// Ensure block sampling can run a sweep and produce valid spin nodes.
 fn sampling_program_runs_without_error() {
     let node = SpinNode::new().into();
     let block = Block::new(vec![node]);

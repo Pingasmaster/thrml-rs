@@ -4,7 +4,7 @@ use crate::block_sampling::BlockSamplingProgram;
 use crate::pgm::Node;
 use std::sync::Arc;
 
-/// Observer trait that can inspect sampling programs at each iteration.
+/// Observer trait that can inspect sampling programs at each iteration and carry memoization.
 pub trait AbstractObserver {
     type Carry;
     type Output;
@@ -21,7 +21,7 @@ pub trait AbstractObserver {
     ) -> (Self::Carry, Self::Output);
 }
 
-/// Observer that returns the raw states of blocks.
+/// Observer that returns the raw state snapshots for the requested blocks each iteration.
 pub struct StateObserver {
     pub blocks_to_sample: Vec<Block>,
 }
@@ -53,6 +53,7 @@ impl AbstractObserver for StateObserver {
         let mut combined = Vec::with_capacity(state_free.len() + state_clamp.len());
         combined.extend(state_free.iter());
         combined.extend(state_clamp.iter());
+        // Flatten both free and clamp blocks so we can reproject requested snapshots.
         let global_state = block_state_to_global(&combined);
         let sampled_blocks = from_global_state(
             &global_state,
@@ -63,11 +64,13 @@ impl AbstractObserver for StateObserver {
     }
 }
 
-/// Observer that accumulates moments defined over nodes.
+/// Observer that accumulates moment products for a sequence of node tuples.
 pub struct MomentAccumulatorObserver {
     moment_spec: Vec<Vec<Vec<Node>>>,
     f_transform: Arc<dyn Fn(&NodeValue) -> f64 + Send + Sync>,
 }
+
+// moment_spec describes groups of tuples; f_transform maps NodeValue -> numeric moment contribution.
 
 impl MomentAccumulatorObserver {
     pub fn new<F>(moment_spec: Vec<Vec<Vec<Node>>>, f_transform: F) -> Self
@@ -106,6 +109,7 @@ impl AbstractObserver for MomentAccumulatorObserver {
         let global_state = block_state_to_global(&combined);
         let spec = &program.gibbs_spec.block_spec;
 
+        // Accumulate each requested moment product across the sampled state.
         for (group_index, group) in self.moment_spec.iter().enumerate() {
             for (moment_index, nodes) in group.iter().enumerate() {
                 let mut product = 1.0;

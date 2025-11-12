@@ -12,12 +12,14 @@ pub struct BernoulliConditional;
 
 impl BernoulliConditional {
     fn sigmoid(x: f64) -> f64 {
+        // Numerically stable logistic used to convert logit -> probability.
         1.0 / (1.0 + (-x).exp())
     }
 }
 
 impl AbstractConditionalSampler for BernoulliConditional {
     fn sample(&self, rng: &mut dyn RngCore, logits: &[f64]) -> Vec<NodeValue> {
+        // Convert each logit to a Bernoulli draw using the logistic CDF.
         logits
             .iter()
             .map(|&logit| {
@@ -60,6 +62,7 @@ impl AbstractConditionalSampler for SoftmaxConditional {
                 let probs = Self::softmax(slice);
                 let mut cumulative = 0.0;
                 let draw: f64 = rng.random();
+                // Draw from a categorical distribution by scanning cumulative probabilities.
                 for (idx, &p) in probs.iter().enumerate() {
                     cumulative += p;
                     if draw <= cumulative {

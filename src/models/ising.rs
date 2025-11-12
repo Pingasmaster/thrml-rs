@@ -6,6 +6,7 @@ use crate::models::discrete_ebm::{SpinEBMFactor, SpinGibbsConditional};
 use rand::{Rng, RngCore};
 use std::collections::HashMap;
 
+/// Runs warmup+sampling for a given chain and returns the global states sampled.
 fn run_sampling_chain(
     rng: &mut dyn RngCore,
     program: &IsingSamplingProgram,
@@ -13,6 +14,7 @@ fn run_sampling_chain(
     state_free: &mut [BlockState],
     state_clamp: &[BlockState],
 ) -> Vec<GlobalState> {
+    // Warmup sweeps let the chain mix before we record samples.
     for _ in 0..schedule.n_warmup {
         program.sample_blocks(rng, state_free, state_clamp);
     }
@@ -22,6 +24,7 @@ fn run_sampling_chain(
         for _ in 0..schedule.steps_per_sample {
             program.sample_blocks(rng, state_free, state_clamp);
         }
+        // Collect the flattened global state after each sampling window.
         samples.push(global_state_for(state_free, state_clamp));
     }
     samples
@@ -29,6 +32,7 @@ fn run_sampling_chain(
 
 pub type Edge = (crate::pgm::Node, crate::pgm::Node);
 
+/// Nodes, pairwise edges, and parameters for the Ising energy function.
 pub struct IsingEBM {
     pub nodes: Vec<crate::pgm::Node>,
     pub edges: Vec<Edge>,
@@ -58,6 +62,7 @@ impl IsingEBM {
             .enumerate()
             .map(|(i, node)| (node, i))
             .collect();
+        // Cache node -> index for fast lookups during energy/moment calculations.
         Self {
             nodes,
             edges,
@@ -69,6 +74,7 @@ impl IsingEBM {
     }
 
     pub fn bias_factor(&self) -> SpinEBMFactor {
+        // Treat all nodes as one block when encoding biases.
         SpinEBMFactor::new(vec![Block::new(self.nodes.clone())], self.biases.clone())
     }
 
@@ -84,10 +90,12 @@ impl IsingEBM {
         if !self.edges.is_empty() {
             result.push(Box::new(self.edge_factor()));
         }
+        // Return only the necessary factors depending on whether edges exist.
         result
     }
 
     pub fn energy(&self, global_state: &GlobalState) -> f64 {
+        // Convert the global state to +/-1 spins for energy calculation.
         let spins: Vec<f64> = self
             .nodes
             .iter()
@@ -118,6 +126,7 @@ impl IsingEBM {
     }
 }
 
+/// Thin wrapper exposing the FactorSamplingProgram configured for spins.
 pub struct IsingSamplingProgram {
     pub inner: FactorSamplingProgram,
 }
@@ -141,10 +150,12 @@ impl IsingSamplingProgram {
         state_free: &mut [BlockState],
         state_clamp: &[BlockState],
     ) {
+        // Forward the call to the underlying factor-driven sampler.
         self.inner.sample_blocks(rng, state_free, state_clamp);
     }
 }
 
+/// Bundles models, sampling programs, and schedules needed for CD/KL training.
 pub struct IsingTrainingSpec {
     pub ebm: IsingEBM,
     pub program_positive: IsingSamplingProgram,
@@ -153,6 +164,7 @@ pub struct IsingTrainingSpec {
     pub schedule_negative: SamplingSchedule,
 }
 
+/// Initialize spins via Hinton scheme that biases draws according to node bias.
 pub fn hinton_init(rng: &mut dyn RngCore, model: &IsingEBM, blocks: &[Block]) -> Vec<BlockState> {
     blocks
         .iter()
@@ -171,6 +183,7 @@ pub fn hinton_init(rng: &mut dyn RngCore, model: &IsingEBM, blocks: &[Block]) ->
         .collect()
 }
 
+/// Estimate first/second moments by running a sampling chain and averaging observations.
 pub fn estimate_moments(
     _rng: &mut dyn RngCore,
     _first_moment_nodes: &[crate::pgm::Node],
@@ -190,6 +203,7 @@ pub fn estimate_moments(
     let mut edge_sums = vec![0.0; _second_moment_edges.len()];
 
     for global in samples.iter() {
+        // Accumulate samples so averages can be computed after the sweep.
         for (i, node) in _first_moment_nodes.iter().enumerate() {
             let value = spin_value(global[spec.node_location[node]].clone());
             node_sums[i] += value;
@@ -209,6 +223,7 @@ pub fn estimate_moments(
     )
 }
 
+/// Estimate KL gradients by running positive/negative sampling programs.
 pub fn estimate_kl_grad(
     _rng: &mut dyn RngCore,
     _spec: &IsingTrainingSpec,
@@ -244,6 +259,7 @@ pub fn estimate_kl_grad(
     );
 
     let beta = _spec.ebm.beta;
+    // Differences between positive and negative samples give the KL gradient direction.
     let grad_b = pos_nodes
         .iter()
         .zip(neg_nodes.iter())
@@ -265,10 +281,12 @@ pub fn estimate_kl_grad(
 
 fn global_state_for(state_free: &[BlockState], state_clamp: &[BlockState]) -> GlobalState {
     let refs: Vec<&BlockState> = state_free.iter().chain(state_clamp.iter()).collect();
+    // Use the shared helper to flatten current block assignments into a global vector.
     block_state_to_global(&refs)
 }
 
 fn spin_value(value: NodeValue) -> f64 {
+    // Interpret spins as ±1 so dot products match Ising energy.
     match value {
         NodeValue::Spin(true) => 1.0,
         NodeValue::Spin(false) => -1.0,

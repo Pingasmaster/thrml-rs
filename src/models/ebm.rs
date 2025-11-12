@@ -17,6 +17,7 @@ pub struct FactorizedEBM {
 
 impl FactorizedEBM {
     pub fn new(factors: Vec<Box<dyn EBMFactor>>) -> Self {
+        // Groups energy contributors into one combined model for convenience.
         Self { factors }
     }
 }

@@ -4,6 +4,22 @@ THRML is now a Rust-native crate for building and sampling probabilistic graphic
 It keeps the spirit of the original library (blocked Gibbs sampling, discrete EBMs, Ising models)
 while leveraging Rust's safety and performance.
 
+> **Disclaimer:** This crate is an independent reimplementation of the original THRML project and
+> is not affiliated with or maintained by the original authors or company. Please do not contact
+> them about issues arising with this Rust port. This work was done for fun and experimentation;
+> there is no promise of professional support, and future maintenance will only happen if there is
+> significant community interest.
+
+## Migration notes
+
+- The Python `thrml` module, its JAX/EQX dependencies, and MkDocs site were replaced with a single
+  Rust crate. The new crate exposes Blocks → Interactions → Factors → SamplingPrograms workflows
+  while providing explicit state management and RNG-driven samplers.
+- All Python tests and notebooks were superseded by Rust unit/integration tests (`tests/*.rs` and
+  `src/...::tests`). The README example now targets the Rust API directly.
+- Observers now follow a carry/output trait, and discrete EBMs combine spin/categorical evaluators built
+  on top of ndarray-backed weight tensors.
+
 ## Key modules
 
 - `block_management`: define nodes, blocks, and conversions between block-local and global states.

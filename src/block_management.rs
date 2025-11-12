@@ -36,6 +36,7 @@ impl BlockState {
             NodeKind::Spin => vec![NodeValue::Spin(false); len],
             NodeKind::Categorical => vec![NodeValue::Categorical(0); len],
         };
+        // Zeros are defined as the canonical 'off' value for each node type.
         BlockState { values }
     }
 
@@ -63,6 +64,7 @@ impl Block {
             nodes.iter().all(|node| node.kind() == kind),
             "All nodes in a block must share a type"
         );
+        // Capturing `kind` once prevents repeated lookups and keeps the block homogeneous.
         Self { nodes, kind }
     }
 
@@ -153,6 +155,7 @@ impl BlockSpec {
         for block in &blocks {
             for node in block.iter() {
                 let index = global_order.len();
+                // Track where the node will appear in the flattened global ordering.
                 if node_location.insert(*node, index).is_some() {
                     panic!("Node referenced by multiple blocks");
                 }
@@ -168,7 +171,7 @@ impl BlockSpec {
     }
 }
 
-/// Converts block-local states into a global state.
+/// Converts block-local states into a global state by concatenating along the first axis.
 pub fn block_state_to_global(states: &[&BlockState]) -> GlobalState {
     states
         .iter()
@@ -192,6 +195,7 @@ pub fn from_global_state(
                         .node_location
                         .get(node)
                         .expect("missing node in global state");
+                    // Reconstruct the block-local value using the mapping built earlier.
                     global[*idx].clone()
                 })
                 .collect();
@@ -208,7 +212,7 @@ pub fn get_node_locations(block: &Block, spec: &BlockSpec) -> Vec<usize> {
         .collect()
 }
 
-/// Creates zero-initialized block states for each block.
+/// Creates zero-initialized block states for each block, matching their shapes and kinds.
 pub fn make_empty_block_state(blocks: &[Block]) -> Vec<BlockState> {
     blocks
         .iter()
