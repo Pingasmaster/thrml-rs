@@ -143,7 +143,6 @@ venv.bak/
 # Rust build artifacts
 target/
 **/target/
-.cargo/
 
 # mypy
 .mypy_cache/
